@@ -19,24 +19,32 @@ jobs:
 
       - name: Build Wheels in ARMv6 Container
         run: |
+          # 创建缓存目录，避免容器内 git 索引过大触发 EOVERFLOW
+          mkdir -p ~/.cargo/registry
+          
           docker run --rm \
             -v ${{ github.workspace }}:/io \
+            -v ~/.cargo/registry:/root/.cargo/registry \
             -w /io \
             balenalib/rpi-debian:bookworm \
             /bin/bash -c "
               apt-get update && \
-              # 重点：必须同时安装 python3-dev 和 libffi-dev
-              apt-get install -y python3 python3-pip python3-dev python3-venv \
+              apt-get install -y python3 python3-pip python3-dev \
                                  gcc g++ make curl cargo rustc pkg-config \
                                  libffi-dev libssl-dev cmake ninja-build \
                                  autoconf automake libtool patchelf && \
               
-              # 预先安装编译工具，防止 pip 在构建依赖时反复下载编译
-              python3 -m pip install --upgrade pip setuptools wheel maturin cffi --break-system-packages || \
-              python3 -m pip install --upgrade pip setuptools wheel maturin cffi && \
+              # 关键修复 1：配置 Cargo 使用稀疏索引（Sparse Index），大大减少文件数量，避开 EOVERFLOW Bug
+              export CARGO_REGISTRIES_CRATES_IO_PROTOCOL=sparse && \
               
-              # 正式打包
-              python3 -m pip wheel -w /io/wheelhouse -r requirements.txt
+              # 关键修复 2：升级基础打包工具
+              python3 -m pip install --upgrade pip setuptools wheel maturin --break-system-packages || true && \
+              
+              # 关键修复 3：针对 cryptography，先安装它的直接依赖
+              python3 -m pip install cffi --break-system-packages || true && \
+              
+              # 正式开始打包（跳过报错的 metadata 准备，直接尝试生成 wheel）
+              python3 -m pip wheel -w /io/wheelhouse -r requirements.txt --no-build-isolation
             "
 
       - name: Upload Wheels as Artifact

@@ -1,5 +1,9 @@
-name: Build Wheels for Pi 1 (ARMv6)
-on: [push, workflow_dispatch]
+name: Build ARMv6 Wheels (Final Precise Build)
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch: # 允许你在 GitHub 页面点击按钮手动触发
 
 jobs:
   build:
@@ -11,40 +15,45 @@ jobs:
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
         with:
-          platforms: linux/arm/v6
+          platforms: arm
 
-      - name: Build Wheels in ARMv6 Container
+      - name: Build Specific Wheels in ARMv6 Container
         run: |
-          docker run --rm --platform linux/arm/v6 \
-          -v ${{ github.workspace }}:/out \
-          debian:bookworm-slim /bin/bash -c "
-          apt-get update && apt-get install -y \
-            python3 python3-pip python3-venv \
-            gcc g++ libssl-dev python3-dev wheel setuptools-scm \
-            git libusb-1.0-0-dev
+          # 创建缓存目录，避开 EOVERFLOW Bug
+          mkdir -p ~/.cargo/registry
           
-          # 在 Debian 12 中，我们需要使用虚拟环境或 --break-system-packages
-          python3 -m venv /opt/venv
-          source /opt/venv/bin/activate
-          pip install --upgrade pip wheel setuptools
+          docker run --rm \
+            -v ${{ github.workspace }}:/io \
+            -v ~/.cargo/registry:/root/.cargo/registry \
+            -w /io \
+            balenalib/rpi-debian:bookworm \
+            /bin/bash -c "
+              # 1. 环境准备
+              apt-get update && \
+              apt-get install -y python3 python3-pip python3-dev \
+                                 gcc g++ make curl cargo rustc pkg-config \
+                                 libffi-dev libssl-dev cmake ninja-build \
+                                 autoconf automake libtool patchelf && \
+              
+              # 2. 配置 Cargo 使用稀疏索引，这是在模拟器中编译 Rust 包（如 qh3）的关键
+              export CARGO_REGISTRIES_CRATES_IO_PROTOCOL=sparse && \
+              
+              # 3. 升级打包工具链
+              python3 -m pip install --upgrade pip setuptools wheel maturin --break-system-packages || true && \
+              
+              # 4. 针对性打包：只编译缺失的包，强制不下载依赖 (--no-deps)
+              # 这样可以彻底避免去重新编译已经在树莓派上装好的 cryptography 等大包
+              python3 -m pip wheel -w /io/wheelhouse --no-deps --no-build-isolation \
+                'qh3>=1.0.0,<2' \
+                'pyimg4>=0.8.8' \
+                'fastapi' \
+                'wsproto' \
+                'construct-typing' \
+                'IPython'
+            "
 
-          # 开始编译你的那一坨依赖
-          pip wheel --wheel-dir=/out/wheels \
-            'qh3>=1.0.0,<2' \
-            'cryptography>=41.0.1' \
-            'psutil' \
-            'sslpsk-pmd3>=1.0.3' \
-            'pyimg4>=0.8.8' \
-            'construct>=2.9.29' \
-            'pymobiledevice3==4.20.17' \
-            'ipsw_parser>=1.5.0' \
-            'hexdump' \
-            'fastapi' \
-            'uvicorn'
-          "
-
-      - name: Upload Wheels
+      - name: Upload Wheels as Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: pi1-wheels
-          path: wheels/*.whl
+          name: raspberry-pi-armv6-precise-wheels
+          path: wheelhouse/*.whl

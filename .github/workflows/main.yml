@@ -1,54 +1,49 @@
-name: Build ARMv6 Wheels
+name: Build ARMv6 Wheels Final
 
 on:
   push:
-    branches: [ main ]
-  workflow_dispatch: # 允许你手动点击按钮开始编译
+    branches: [ "main" ]
+  workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      # 关键步骤：安装 QEMU 模拟器，解决 exec format error
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
         with:
           platforms: arm
 
-      - name: Build Wheels in ARMv6 Container
+      - name: Build and Collect Wheels
         run: |
-          # 创建缓存目录，避免容器内 git 索引过大触发 EOVERFLOW
-          mkdir -p ~/.cargo/registry
-          
           docker run --rm \
+            --platform linux/arm/v6 \
             -v ${{ github.workspace }}:/io \
-            -v ~/.cargo/registry:/root/.cargo/registry \
             -w /io \
             balenalib/rpi-debian:bookworm \
             /bin/bash -c "
               apt-get update && \
-              apt-get install -y python3 python3-pip python3-dev \
-                                 gcc g++ make curl cargo rustc pkg-config \
-                                 libffi-dev libssl-dev cmake ninja-build \
-                                 autoconf automake libtool patchelf && \
+              apt-get install -y python3 python3-pip python3-dev gcc g++ make \
+                                 libffi-dev libssl-dev pkg-config cmake && \
               
-              # 关键修复 1：配置 Cargo 使用稀疏索引（Sparse Index），大大减少文件数量，避开 EOVERFLOW Bug
-              export CARGO_REGISTRIES_CRATES_IO_PROTOCOL=sparse && \
+              mkdir -p /io/wheelhouse && \
               
-              # 关键修复 2：升级基础打包工具
-              python3 -m pip install --upgrade pip setuptools wheel maturin --break-system-packages || true && \
-              
-              # 关键修复 3：针对 cryptography，先安装它的直接依赖
-              python3 -m pip install cffi --break-system-packages || true && \
-              
-              # 正式开始打包（跳过报错的 metadata 准备，直接尝试生成 wheel）
-              python3 -m pip wheel -w /io/wheelhouse -r requirements.txt --no-build-isolation
+              # 优先从 piwheels 下载，找不到再本地编译
+              python3 -m pip wheel \
+                --wheel-dir=/io/wheelhouse \
+                -r requirements.txt \
+                --extra-index-url https://www.piwheels.org/simple \
+                --prefer-binary \
+                --break-system-packages || true
             "
 
-      - name: Upload Wheels as Artifact
+      - name: Upload Wheels
         uses: actions/upload-artifact@v4
         with:
-          name: raspberry-pi-armv6-wheels
-          path: wheelhouse/*.whl
+          name: armv6-wheels
+          path: wheelhouse/

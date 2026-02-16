@@ -33,16 +33,22 @@ jobs:
               apt-get update && \
               apt-get install -y python3 python3-pip python3-dev \
                                  gcc g++ make curl cargo rustc pkg-config \
-                                 libffi-dev libssl-dev cmake git && \
+                                 libffi-dev libssl-dev cmake git \
+                                 libusb-1.0-0-dev libjpeg-dev zlib1g-dev && \
+              
               export CARGO_REGISTRIES_CRATES_IO_PROTOCOL=sparse && \
-              export CARGO_NET_GIT_FETCH_WITH_CLI=true && \
               python3 -m pip install --upgrade pip setuptools wheel maturin --break-system-packages || true && \
-              python3 -m pip wheel -w /io/wheelhouse --no-deps \
-                'qh3==1.0.1' \
+              
+              # 这次我们把所有检测不到的包全部原地编译成 Wheel
+              python3 -m pip wheel -w /io/wheelhouse --no-deps --no-build-isolation \
+                'pyusb>=1.2.1' \
+                'Pillow>=10.0.0' \
+                'pydantic>=2.0' \
+                'pydantic-core' \
                 'pyimg4>=0.8.8' \
                 'fastapi' \
-                'wsproto' \
                 'construct-typing' \
+                'wsproto' \
                 'IPython'
             "
 

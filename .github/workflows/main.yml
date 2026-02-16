@@ -19,16 +19,16 @@ jobs:
 
       - name: Build Wheels in ARMv6 Container
         run: |
-          # 改用 debian:bookworm，它是目前支持 armv6 的最稳定基础镜像
-          docker run --rm --platform linux/arm/v6 \
+          # 使用 balenalib 专门为树莓派 1/Zero 维护的镜像
+          # 这个镜像内建了对 ARMv6 的完美支持
+          docker run --rm \
             -v ${{ github.workspace }}:/io \
             -w /io \
-            debian:bookworm \
+            balenalib/rpi-debian:bookworm \
             /bin/bash -c "
               apt-get update && \
               apt-get install -y python3 python3-pip python3-venv gcc g++ curl cargo rustc libffi-dev libssl-dev pkg-config && \
-              # 树莓派 3.13 可能是你手动编的，这里系统自带可能是 3.11，
-              # 但我们可以强制 pip 编译出兼容 3.13 的 wheel
+              # 解决 Debian 的外部包安装限制
               python3 -m pip install --upgrade pip setuptools wheel maturin --break-system-packages && \
               python3 -m pip wheel -w /io/wheelhouse -r requirements.txt --break-system-packages
             "

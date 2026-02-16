@@ -25,9 +25,17 @@ jobs:
             balenalib/rpi-debian:bookworm \
             /bin/bash -c "
               apt-get update && \
-              apt-get install -y python3 python3-pip python3-venv gcc g++ make curl cargo rustc libffi-dev libssl-dev pkg-config cmake ninja-build autoconf automake libtool patchelf && \
-              # 剩下部分保持不变
-              python3 -m pip install --upgrade pip setuptools wheel maturin --break-system-packages || python3 -m pip install --upgrade pip setuptools wheel maturin && \
+              # 重点：必须同时安装 python3-dev 和 libffi-dev
+              apt-get install -y python3 python3-pip python3-dev python3-venv \
+                                 gcc g++ make curl cargo rustc pkg-config \
+                                 libffi-dev libssl-dev cmake ninja-build \
+                                 autoconf automake libtool patchelf && \
+              
+              # 预先安装编译工具，防止 pip 在构建依赖时反复下载编译
+              python3 -m pip install --upgrade pip setuptools wheel maturin cffi --break-system-packages || \
+              python3 -m pip install --upgrade pip setuptools wheel maturin cffi && \
+              
+              # 正式打包
               python3 -m pip wheel -w /io/wheelhouse -r requirements.txt
             "
 

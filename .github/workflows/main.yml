@@ -3,7 +3,7 @@ name: Build ARMv6 Wheels (Final Precise Build)
 on:
   push:
     branches: [ main ]
-  workflow_dispatch: # 允许你在 GitHub 页面点击按钮手动触发
+  workflow_dispatch:
 
 jobs:
   build:
@@ -19,9 +19,10 @@ jobs:
 
       - name: Build Specific Wheels in ARMv6 Container
         run: |
-          # 关键：彻底清理宿主机的缓存，防止脏数据带入容器
+          # 清理宿主机缓存空间
           rm -rf ~/.cargo/registry
           mkdir -p ~/.cargo/registry
+          mkdir -p ${{ github.workspace }}/wheelhouse
           
           docker run --rm \
             -v ${{ github.workspace }}:/io \
@@ -33,12 +34,9 @@ jobs:
               apt-get install -y python3 python3-pip python3-dev \
                                  gcc g++ make curl cargo rustc pkg-config \
                                  libffi-dev libssl-dev cmake git && \
-              
-              # 1. 继续强制使用稀疏索引
               export CARGO_REGISTRIES_CRATES_IO_PROTOCOL=sparse && \
-              
-              # 2. 尝试编译 qh3 的旧版本 (1.0.0 左右通常不强制依赖 aws-lc-rs)
-              # 同时去掉 --no-build-isolation 以防 maturin 环境缺失
+              export CARGO_NET_GIT_FETCH_WITH_CLI=true && \
+              python3 -m pip install --upgrade pip setuptools wheel maturin --break-system-packages || true && \
               python3 -m pip wheel -w /io/wheelhouse --no-deps \
                 'qh3==1.0.1' \
                 'pyimg4>=0.8.8' \
@@ -46,6 +44,7 @@ jobs:
                 'wsproto' \
                 'construct-typing' \
                 'IPython'
+            "
 
       - name: Upload Wheels as Artifact
         uses: actions/upload-artifact@v4

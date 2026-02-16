@@ -25,8 +25,8 @@ jobs:
             balenalib/rpi-debian:bookworm \
             /bin/bash -c "
               apt-get update && \
-              apt-get install -y python3 python3-pip python3-venv gcc g++ make curl cargo rustc libffi-dev libssl-dev pkg-config cmake ninja-build && \
-              # 剩下的保持不变
+              apt-get install -y python3 python3-pip python3-venv gcc g++ make curl cargo rustc libffi-dev libssl-dev pkg-config cmake ninja-build autoconf automake libtool patchelf && \
+              # 剩下部分保持不变
               python3 -m pip install --upgrade pip setuptools wheel maturin --break-system-packages || python3 -m pip install --upgrade pip setuptools wheel maturin && \
               python3 -m pip wheel -w /io/wheelhouse -r requirements.txt
             "

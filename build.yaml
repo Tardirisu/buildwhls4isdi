@@ -1,0 +1,38 @@
+name: Build ARMv6 Wheels for Python 3.13
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch: 
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm
+
+      - name: Build Wheels in ARMv6 Container
+        run: |
+          # 使用 python:3.13-bookworm 确保系统库较新，适配 3.13
+          docker run --rm --platform linux/arm/v6 \
+            -v ${{ github.workspace }}:/io \
+            -w /io \
+            arm32v6/python:3.13-bookworm \
+            /bin/bash -c "
+              apt-get update && \
+              apt-get install -y gcc g++ curl cargo rustc libffi-dev libssl-dev pkg-config && \
+              python -m pip install --upgrade pip setuptools wheel maturin && \
+              pip wheel -w /io/wheelhouse -r requirements.txt
+            "
+
+      - name: Upload Wheels as Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: pi-313-armv6-wheels
+          path: wheelhouse/*.whl

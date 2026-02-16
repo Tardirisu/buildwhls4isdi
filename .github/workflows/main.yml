@@ -17,10 +17,18 @@ jobs:
         run: |
           docker run --rm --platform linux/arm/v6 \
           -v ${{ github.workspace }}:/out \
-          python:3.13-slim-bookworm /bin/bash -c "
-          apt-get update && apt-get install -y gcc g++ libssl-dev python3-dev
+          debian:bookworm-slim /bin/bash -c "
+          apt-get update && apt-get install -y \
+            python3 python3-pip python3-venv \
+            gcc g++ libssl-dev python3-dev wheel setuptools-scm \
+            git libusb-1.0-0-dev
+          
+          # 在 Debian 12 中，我们需要使用虚拟环境或 --break-system-packages
+          python3 -m venv /opt/venv
+          source /opt/venv/bin/activate
           pip install --upgrade pip wheel setuptools
-          # 这一步是核心：编译你列出的所有包
+
+          # 开始编译你的那一坨依赖
           pip wheel --wheel-dir=/out/wheels \
             'qh3>=1.0.0,<2' \
             'cryptography>=41.0.1' \
@@ -28,7 +36,11 @@ jobs:
             'sslpsk-pmd3>=1.0.3' \
             'pyimg4>=0.8.8' \
             'construct>=2.9.29' \
-            'pymobiledevice3==4.20.17'
+            'pymobiledevice3==4.20.17' \
+            'ipsw_parser>=1.5.0' \
+            'hexdump' \
+            'fastapi' \
+            'uvicorn'
           "
 
       - name: Upload Wheels

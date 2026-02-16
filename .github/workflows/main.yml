@@ -34,24 +34,18 @@ jobs:
                                  gcc g++ make curl cargo rustc pkg-config \
                                  libffi-dev libssl-dev cmake git && \
               
-              # 1. 核心修复：强制 Cargo 使用 Sparse Index (避免读取 refs 目录)
+              # 1. 继续强制使用稀疏索引
               export CARGO_REGISTRIES_CRATES_IO_PROTOCOL=sparse && \
-              export CARGO_NET_GIT_FETCH_WITH_CLI=true && \
               
-              # 2. 更新基础工具
-              python3 -m pip install --upgrade pip setuptools wheel maturin --break-system-packages && \
-              
-              # 3. 再次尝试编译 qh3
-              # 注意：我们去掉了 --no-build-isolation 以允许 maturin 正常工作
-              # 但保留 --no-deps 确保不重编别的
+              # 2. 尝试编译 qh3 的旧版本 (1.0.0 左右通常不强制依赖 aws-lc-rs)
+              # 同时去掉 --no-build-isolation 以防 maturin 环境缺失
               python3 -m pip wheel -w /io/wheelhouse --no-deps \
-                'qh3>=1.0.0,<2' \
+                'qh3==1.0.1' \
                 'pyimg4>=0.8.8' \
                 'fastapi' \
                 'wsproto' \
                 'construct-typing' \
                 'IPython'
-            "
 
       - name: Upload Wheels as Artifact
         uses: actions/upload-artifact@v4

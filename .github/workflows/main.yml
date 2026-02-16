@@ -19,14 +19,15 @@ jobs:
 
       - name: Build Wheels in ARMv6 Container
         run: |
+          # 修正镜像名为 python:3.13-bookworm，并显式指定平台
           docker run --rm --platform linux/arm/v6 \
             -v ${{ github.workspace }}:/io \
             -w /io \
-            arm32v6/python:3.9-slim \
+            python:3.13-bookworm \
             /bin/bash -c "
               apt-get update && \
-              apt-get install -y gcc g++ curl cargo rustc libffi-dev libssl-dev && \
-              pip install --upgrade pip && \
+              apt-get install -y gcc g++ curl cargo rustc libffi-dev libssl-dev pkg-config && \
+              python -m pip install --upgrade pip setuptools wheel maturin && \
               pip wheel -w /io/wheelhouse -r requirements.txt
             "
 

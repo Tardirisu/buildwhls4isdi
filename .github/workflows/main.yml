@@ -2,53 +2,45 @@ name: Build ARMv6 Wheels
 
 on:
   push:
-    branches: [ main ]
-  workflow_dispatch: # 允许你手动点击按钮开始编译
+    branches: [ "main" ]
+  workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
-          platforms: arm
+          python-version: '3.11' # 匹配树莓派 Debian Bookworm 的默认版本
 
-      - name: Build Wheels in ARMv6 Container
+      - name: Collect ARMv6 Wheels from piwheels
         run: |
-          # 创建缓存目录，避免容器内 git 索引过大触发 EOVERFLOW
-          mkdir -p ~/.cargo/registry
+          mkdir -p wheelhouse
           
-          docker run --rm \
-            -v ${{ github.workspace }}:/io \
-            -v ~/.cargo/registry:/root/.cargo/registry \
-            -w /io \
-            balenalib/rpi-debian:bookworm \
-            /bin/bash -c "
-              apt-get update && \
-              apt-get install -y python3 python3-pip python3-dev \
-                                 gcc g++ make curl cargo rustc pkg-config \
-                                 libffi-dev libssl-dev cmake ninja-build \
-                                 autoconf automake libtool patchelf && \
-              
-              # 关键修复 1：配置 Cargo 使用稀疏索引（Sparse Index），大大减少文件数量，避开 EOVERFLOW Bug
-              export CARGO_REGISTRIES_CRATES_IO_PROTOCOL=sparse && \
-              
-              # 关键修复 2：升级基础打包工具
-              python3 -m pip install --upgrade pip setuptools wheel maturin --break-system-packages || true && \
-              
-              # 关键修复 3：针对 cryptography，先安装它的直接依赖
-              python3 -m pip install cffi --break-system-packages || true && \
-              
-              # 正式开始打包（跳过报错的 metadata 准备，直接尝试生成 wheel）
-              python3 -m pip wheel -w /io/wheelhouse -r requirements.txt --no-build-isolation
-            "
+          # 核心逻辑：
+          # 1. --platform linux_armv6l: 强制要求树莓派1/Zero架构
+          # 2. --only-binary=:all:: 拒绝源码包，只要编译好的二进制
+          # 3. --extra-index-url: 指向树莓派专用仓库
+          python -m pip download \
+            --platform linux_armv6l \
+            --only-binary=:all: \
+            --python-version 311 \
+            --implementation cp \
+            --abi cp311 \
+            --dest wheelhouse \
+            -r requirements.txt \
+            --extra-index-url https://www.piwheels.org/simple
+          
+          # 检查是否成功下载了 cryptography 等大件
+          ls -lh wheelhouse
 
       - name: Upload Wheels as Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: raspberry-pi-armv6-wheels
-          path: wheelhouse/*.whl
+          name: armv6-wheels
+          path: wheelhouse/

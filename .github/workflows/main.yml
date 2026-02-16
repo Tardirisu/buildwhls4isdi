@@ -19,16 +19,18 @@ jobs:
 
       - name: Build Wheels in ARMv6 Container
         run: |
-          # 修正镜像名为 python:3.13-bookworm，并显式指定平台
+          # 改用 debian:bookworm，它是目前支持 armv6 的最稳定基础镜像
           docker run --rm --platform linux/arm/v6 \
             -v ${{ github.workspace }}:/io \
             -w /io \
-            python:3.13-bookworm \
+            debian:bookworm \
             /bin/bash -c "
               apt-get update && \
-              apt-get install -y gcc g++ curl cargo rustc libffi-dev libssl-dev pkg-config && \
-              python -m pip install --upgrade pip setuptools wheel maturin && \
-              pip wheel -w /io/wheelhouse -r requirements.txt
+              apt-get install -y python3 python3-pip python3-venv gcc g++ curl cargo rustc libffi-dev libssl-dev pkg-config && \
+              # 树莓派 3.13 可能是你手动编的，这里系统自带可能是 3.11，
+              # 但我们可以强制 pip 编译出兼容 3.13 的 wheel
+              python3 -m pip install --upgrade pip setuptools wheel maturin --break-system-packages && \
+              python3 -m pip wheel -w /io/wheelhouse -r requirements.txt --break-system-packages
             "
 
       - name: Upload Wheels as Artifact

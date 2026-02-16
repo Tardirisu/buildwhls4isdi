@@ -1,0 +1,37 @@
+name: Build ARMv6 Wheels
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch: # 允许你手动点击按钮开始编译
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm
+
+      - name: Build Wheels in ARMv6 Container
+        run: |
+          docker run --rm --platform linux/arm/v6 \
+            -v ${{ github.workspace }}:/io \
+            -w /io \
+            arm32v6/python:3.9-slim \
+            /bin/bash -c "
+              apt-get update && \
+              apt-get install -y gcc g++ curl cargo rustc libffi-dev libssl-dev && \
+              pip install --upgrade pip && \
+              pip wheel -w /io/wheelhouse -r requirements.txt
+            "
+
+      - name: Upload Wheels as Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: raspberry-pi-armv6-wheels
+          path: wheelhouse/*.whl

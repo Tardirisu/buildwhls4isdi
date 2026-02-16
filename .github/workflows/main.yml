@@ -19,8 +19,6 @@ jobs:
 
       - name: Build Wheels in ARMv6 Container
         run: |
-          # 使用 balenalib 专门为树莓派 1/Zero 维护的镜像
-          # 这个镜像内建了对 ARMv6 的完美支持
           docker run --rm \
             -v ${{ github.workspace }}:/io \
             -w /io \
@@ -28,9 +26,11 @@ jobs:
             /bin/bash -c "
               apt-get update && \
               apt-get install -y python3 python3-pip python3-venv gcc g++ curl cargo rustc libffi-dev libssl-dev pkg-config && \
-              # 解决 Debian 的外部包安装限制
-              python3 -m pip install --upgrade pip setuptools wheel maturin --break-system-packages && \
-              python3 -m pip wheel -w /io/wheelhouse -r requirements.txt --break-system-packages
+              # 升级基础工具，去掉 --break-system-packages 试试
+              python3 -m pip install --upgrade pip setuptools wheel maturin --break-system-packages || python3 -m pip install --upgrade pip setuptools wheel maturin
+              
+              # 执行打包命令，去掉那个报错的参数
+              python3 -m pip wheel -w /io/wheelhouse -r requirements.txt
             "
 
       - name: Upload Wheels as Artifact

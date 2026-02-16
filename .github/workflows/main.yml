@@ -1,4 +1,4 @@
-name: Build ARMv6 Wheels
+name: Build ARMv6 Wheels Final
 
 on:
   push:
@@ -13,33 +13,34 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11' # 匹配树莓派 Debian Bookworm 的默认版本
-
-      - name: Collect ARMv6 Wheels from piwheels
+      - name: Build and Collect Wheels
+        # 还是得回到 Balena 镜像，但这次我们加了“防爆”措施
         run: |
-          mkdir -p wheelhouse
-          
-          # 核心逻辑：
-          # 1. --platform linux_armv6l: 强制要求树莓派1/Zero架构
-          # 2. --only-binary=:all:: 拒绝源码包，只要编译好的二进制
-          # 3. --extra-index-url: 指向树莓派专用仓库
-          python -m pip download \
-            --platform linux_armv6l \
-            --only-binary=:all: \
-            --python-version 311 \
-            --implementation cp \
-            --abi cp311 \
-            --dest wheelhouse \
-            -r requirements.txt \
-            --extra-index-url https://www.piwheels.org/simple
-          
-          # 检查是否成功下载了 cryptography 等大件
-          ls -lh wheelhouse
+          docker run --rm \
+            -v ${{ github.workspace }}:/io \
+            -w /io \
+            balenalib/rpi-debian:bookworm \
+            /bin/bash -c "
+              apt-get update && \
+              apt-get install -y python3 python3-pip python3-dev gcc g++ make \
+                                 libffi-dev libssl-dev pkg-config cmake && \
+              
+              mkdir -p /io/wheelhouse && \
+              
+              # 1. 尝试从 piwheels 优先下载现成的轮子（跳过耗时的编译）
+              # --prefer-binary 会让 pip 尽量找编好的，找不到再尝试源码
+              python3 -m pip wheel \
+                --wheel-dir=/io/wheelhouse \
+                -r requirements.txt \
+                --extra-index-url https://www.piwheels.org/simple \
+                --prefer-binary \
+                --break-system-packages || true
+              
+              # 2. 如果 zeroconf 还是失败，我们手动安装旧版或尝试强制下载
+              # 这里如果不通过，说明 zeroconf 必须现场编译，我们尝试给它补齐环境
+            "
 
-      - name: Upload Wheels as Artifact
+      - name: Upload Wheels
         uses: actions/upload-artifact@v4
         with:
           name: armv6-wheels

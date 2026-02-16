@@ -1,49 +1,38 @@
-name: Build ARMv6 Wheels Final
-
-on:
-  push:
-    branches: [ "main" ]
-  workflow_dispatch:
+name: Build Wheels for Pi 1 (ARMv6)
+on: [push, workflow_dispatch]
 
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # 关键步骤：安装 QEMU 模拟器，解决 exec format error
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
         with:
-          platforms: arm
+          platforms: linux/arm/v6
 
-      - name: Build and Collect Wheels
+      - name: Build Wheels in ARMv6 Container
         run: |
-          docker run --rm \
-            --platform linux/arm/v6 \
-            -v ${{ github.workspace }}:/io \
-            -w /io \
-            balenalib/rpi-debian:bookworm \
-            /bin/bash -c "
-              apt-get update && \
-              apt-get install -y python3 python3-pip python3-dev gcc g++ make \
-                                 libffi-dev libssl-dev pkg-config cmake && \
-              
-              mkdir -p /io/wheelhouse && \
-              
-              # 优先从 piwheels 下载，找不到再本地编译
-              python3 -m pip wheel \
-                --wheel-dir=/io/wheelhouse \
-                -r requirements.txt \
-                --extra-index-url https://www.piwheels.org/simple \
-                --prefer-binary \
-                --break-system-packages || true
-            "
+          docker run --rm --platform linux/arm/v6 \
+          -v ${{ github.workspace }}:/out \
+          python:3.13-slim-bookworm /bin/bash -c "
+          apt-get update && apt-get install -y gcc g++ libssl-dev python3-dev
+          pip install --upgrade pip wheel setuptools
+          # 这一步是核心：编译你列出的所有包
+          pip wheel --wheel-dir=/out/wheels \
+            'qh3>=1.0.0,<2' \
+            'cryptography>=41.0.1' \
+            'psutil' \
+            'sslpsk-pmd3>=1.0.3' \
+            'pyimg4>=0.8.8' \
+            'construct>=2.9.29' \
+            'pymobiledevice3==4.20.17'
+          "
 
       - name: Upload Wheels
         uses: actions/upload-artifact@v4
         with:
-          name: armv6-wheels
-          path: wheelhouse/
+          name: pi1-wheels
+          path: wheels/*.whl

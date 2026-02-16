@@ -19,7 +19,8 @@ jobs:
 
       - name: Build Specific Wheels in ARMv6 Container
         run: |
-          # 创建缓存目录，避开 EOVERFLOW Bug
+          # 关键：彻底清理宿主机的缓存，防止脏数据带入容器
+          rm -rf ~/.cargo/registry
           mkdir -p ~/.cargo/registry
           
           docker run --rm \
@@ -28,22 +29,22 @@ jobs:
             -w /io \
             balenalib/rpi-debian:bookworm \
             /bin/bash -c "
-              # 1. 环境准备
               apt-get update && \
               apt-get install -y python3 python3-pip python3-dev \
                                  gcc g++ make curl cargo rustc pkg-config \
-                                 libffi-dev libssl-dev cmake ninja-build \
-                                 autoconf automake libtool patchelf && \
+                                 libffi-dev libssl-dev cmake git && \
               
-              # 2. 配置 Cargo 使用稀疏索引，这是在模拟器中编译 Rust 包（如 qh3）的关键
+              # 1. 核心修复：强制 Cargo 使用 Sparse Index (避免读取 refs 目录)
               export CARGO_REGISTRIES_CRATES_IO_PROTOCOL=sparse && \
+              export CARGO_NET_GIT_FETCH_WITH_CLI=true && \
               
-              # 3. 升级打包工具链
-              python3 -m pip install --upgrade pip setuptools wheel maturin --break-system-packages || true && \
+              # 2. 更新基础工具
+              python3 -m pip install --upgrade pip setuptools wheel maturin --break-system-packages && \
               
-              # 4. 针对性打包：只编译缺失的包，强制不下载依赖 (--no-deps)
-              # 这样可以彻底避免去重新编译已经在树莓派上装好的 cryptography 等大包
-              python3 -m pip wheel -w /io/wheelhouse --no-deps --no-build-isolation \
+              # 3. 再次尝试编译 qh3
+              # 注意：我们去掉了 --no-build-isolation 以允许 maturin 正常工作
+              # 但保留 --no-deps 确保不重编别的
+              python3 -m pip wheel -w /io/wheelhouse --no-deps \
                 'qh3>=1.0.0,<2' \
                 'pyimg4>=0.8.8' \
                 'fastapi' \
